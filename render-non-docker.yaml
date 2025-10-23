@@ -10,3 +10,13 @@ services:
     envVars:
       - key: PORT
         value: 3000
+      - key: DATABASE_URL
+        value: ""
+      - key: PGSSL
+        value: "1"
+      - key: ADMIN_PASSWORD
+        value: ""
+      - key: PG_MIGRATE_FROM_SQLITE
+        value: "0"
+      - key: NODE_OPTIONS
+        value: "--dns-result-order=ipv4first"

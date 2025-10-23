@@ -373,6 +373,27 @@ app.get('/api/debug/db-info', async (req,res)=> {
   }
 });
 
+// Diagnostic DNS endpoint to help debug resolution from the runtime environment
+app.get('/api/debug/dns', async (req, res) => {
+  const conn = process.env.DATABASE_URL || '';
+  try {
+    if(!conn) return res.json({ error: 'DATABASE_URL not set' });
+    let host;
+    try { host = (new URL(conn)).hostname; } catch(e){ return res.status(400).json({ error: 'Invalid DATABASE_URL' }); }
+    const lookup = dns.promises.lookup;
+    const results = { host };
+    try {
+      const a = await lookup(host, { family: 4 });
+      results.a = a;
+    } catch(aErr){ results.a = { error: String(aErr && aErr.message) }; }
+    try {
+      const aaaa = await lookup(host, { family: 6 });
+      results.aaaa = aaaa;
+    } catch(aaaaErr){ results.aaaa = { error: String(aaaaErr && aaaaErr.message) }; }
+    res.json(results);
+  } catch(e){ res.status(500).json({ error: e && e.message }); }
+});
+
 async function logDbStatus(){
   try {
     const rows = await allAsync('SELECT COUNT(*) as count FROM transactions');

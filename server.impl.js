@@ -8,36 +8,53 @@ import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import dns from 'dns';
 // Postgres optional (installed only if using managed DB)
 let pool = null; // will hold pg Pool when DATABASE_URL provided
 let usePg = !!process.env.DATABASE_URL;
 if(usePg){
-  // Basic validation of DATABASE_URL to provide clearer diagnostics for malformed URIs
-  try {
-    // This will throw if DATABASE_URL is not a valid absolute URL
-    new URL(String(process.env.DATABASE_URL));
-  } catch(uriErr){
-    console.error('[Postgres] DATABASE_URL appears invalid:', uriErr.message);
-    console.error('[Postgres] Ensure you copied the full "Connection string (URI)" (e.g. postgres://user:pass@host:5432/db) from your provider and did not include surrounding quotes.');
-    usePg = false;
-  }
-}
-if(usePg){
   try {
     const pg = await import('pg');
     const { Pool } = pg;
-    // Create pool and verify a simple query
+    // Try to prefer IPv4 by resolving the host to an A record first. This avoids ENETUNREACH
+    // errors in environments that lack IPv6 routing. If resolution fails or the host is
+    // already an IP, fall back to the original DATABASE_URL.
+    let connString = process.env.DATABASE_URL;
+    try {
+      if (connString) {
+        try {
+          const u = new URL(connString);
+          const host = u.hostname;
+          // If hostname is not already an IPv4 literal, try to lookup an A record
+          if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+            try {
+              const { lookup } = dns.promises;
+              const r = await lookup(host, { family: 4 });
+              if (r && r.address) {
+                u.hostname = r.address;
+                connString = u.toString();
+                console.log('[Postgres] Resolved IPv4 address', r.address, '— using IPv4 connection string');
+              }
+            } catch (dnsErr) {
+              // DNS lookup failed; ignore and fall back to original connString
+              console.warn('[Postgres] IPv4 lookup failed for', host, dnsErr && dnsErr.message);
+            }
+          }
+        } catch (urlErr) {
+          // Could not parse URL; leave connString as-is
+        }
+      }
+    } catch (_) {}
+
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: connString,
       // Most free providers require SSL; allow disabling via PGSSL=0
       ssl: process.env.PGSSL === '0' ? false : { rejectUnauthorized: false }
     });
     await pool.query('SELECT 1');
     console.log('[Postgres] Connected.');
   } catch(e){
-    // Provide the original error message and a hint about what to check
-    console.error('[Postgres] Failed to initialize, falling back to SQLite:', e && e.message ? e.message : e);
-    console.error('[Postgres] Hint: verify DATABASE_URL is a valid URI, credentials are correct, and PGSSL is set appropriately (many hosts require SSL).');
+    console.error('[Postgres] Failed to initialize, falling back to SQLite:', e.message);
     usePg = false;
   }
 }

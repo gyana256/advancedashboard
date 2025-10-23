@@ -51,8 +51,36 @@ if(usePg){
       // Most free providers require SSL; allow disabling via PGSSL=0
       ssl: process.env.PGSSL === '0' ? false : { rejectUnauthorized: false }
     });
-    await pool.query('SELECT 1');
-    console.log('[Postgres] Connected.');
+    try {
+      await pool.query('SELECT 1');
+      console.log('[Postgres] Connected.');
+    } catch(initErr){
+      // If connection failed due to IPv6/unreachable network or DNS and a proxy is provided,
+      // attempt to reconnect via the proxy (expected format: host:port or host)
+      const msg = String(initErr && (initErr.code || initErr.message || initErr));
+      const shouldTryProxy = !!process.env.DATABASE_PROXY && /ENETUNREACH|EADDRNOTAVAIL|getaddrinfo ENOTFOUND|ENOTFOUND/i.test(msg);
+      if(shouldTryProxy){
+        console.warn('[Postgres] Initial connect failed:', msg, '— attempting proxy fallback via DATABASE_PROXY');
+        try {
+          const proxy = process.env.DATABASE_PROXY.trim();
+          const [proxyHost, proxyPortRaw] = proxy.split(':');
+          const proxyPort = proxyPortRaw ? parseInt(proxyPortRaw,10) : 5432;
+          const u = new URL(connString);
+          // preserve auth and database, but point host/port at the proxy
+          u.hostname = proxyHost;
+          u.port = String(proxyPort);
+          const proxyConn = u.toString();
+          pool = new Pool({ connectionString: proxyConn, ssl: process.env.PGSSL === '0' ? false : { rejectUnauthorized: false } });
+          await pool.query('SELECT 1');
+          console.log('[Postgres] Connected via proxy', proxyHost + ':' + proxyPort);
+        } catch(proxyErr){
+          console.error('[Postgres] Proxy fallback failed:', proxyErr && proxyErr.message || proxyErr);
+          throw initErr; // fall through to outer catch which falls back to SQLite
+        }
+      } else {
+        throw initErr;
+      }
+    }
   } catch(e){
     console.error('[Postgres] Failed to initialize, falling back to SQLite:', e.message);
     usePg = false;

@@ -10,6 +10,7 @@
   "packageManager": "npm@10.8.2",
   "scripts": {
     "start": "NODE_ENV=production node server.js",
+    "proxy:start": "node tools/ipv6-proxy.js",
     "start:dev": "node server.js",
     "export:sqlite": "node scripts/export-sqlite-csv.js",
     "build": "echo 'no build step'",

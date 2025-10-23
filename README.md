@@ -89,3 +89,24 @@ npm run export:sqlite
 Notes:
 - The app will prefer Postgres when `DATABASE_URL` is set. Do not rely on SQLite on ephemeral hosts.
 - `ADMIN_PASSWORD` is now read from env (`ADMIN_PASSWORD`) — change it before production.
+
+### Set secrets on Render (Supabase)
+
+1. In Supabase, go to Project → Settings → Database → Connection string and copy the full "Connection string (URI)" (it looks like `postgresql://...`).
+2. In the Render dashboard for your service, open the Environment → Environment Variables section.
+3. Add the following variables (mark the long `DATABASE_URL` as a secret in Render):
+	- DATABASE_URL = <paste Supabase Connection string here>
+	- PGSSL = 1
+	- ADMIN_PASSWORD = <your chosen admin password>
+
+Notes:
+- Render Blueprints (`render.yaml` / `render-non-docker.yaml`) include the environment variable keys as placeholders. Render's API/Blueprint format does not allow embedding secret values directly; set the actual values in the Render dashboard or via the Render API/CLI.
+- If you want Render to migrate an existing SQLite file into Postgres on first startup, set `PG_MIGRATE_FROM_SQLITE=1` and ensure the SQLite `data.db` is present at project root or `DB_PATH` points to it. Use with caution.
+
+Verification
+
+1. Deploy the service.
+2. Check the logs — you should see a startup message like `\[Postgres\] Connected.` and later the server log `Server running on http://... (driver: postgres)`.
+3. Open `https://<your-service>/api/debug/db-info` — the JSON should show `driver: "postgres"` and `rowCount`.
+
+If the app falls back to SQLite, ensure `DATABASE_URL` is correctly set (no surrounding quotes) and that `PGSSL` is `1` (or `0` if you explicitly want to disable SSL).

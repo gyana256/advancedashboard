@@ -1,0 +1,24 @@
+{
+  "name": "financial-dashboard",
+  "version": "1.0.0",
+  "description": "Simple financial dashboard with CSV persistence",
+  "main": "server.js",
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "packageManager": "npm@10.8.2",
+  "scripts": {
+    "start": "NODE_ENV=production node server.js",
+    "start:dev": "node server.js",
+    "export:sqlite": "node scripts/export-sqlite-csv.js",
+    "build": "echo 'no build step'",
+    "render-build": "(grep -q 'int.repositories' package-lock.json 2>/dev/null && echo 'Removing corporate lockfile' && rm package-lock.json || true); npm install --omit=dev --registry=https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pg": "^8.11.5",
+    "sqlite3": "^5.1.7"
+  }
+}

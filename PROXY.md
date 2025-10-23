@@ -74,3 +74,33 @@ sudo ufw enable
 ```
 
 If you don't have specific IPs, consider running the proxy on a non-standard high port and limiting by firewall.
+
+Deploy helper (quick droplet)
+
+I've added `tools/proxy-deploy.sh` which automates installing Node, creating the proxy service, and enabling ufw on a fresh Ubuntu droplet.
+
+Quick bootstrap (DigitalOcean example):
+
+1. Create a small droplet (Ubuntu 22.04/24.04) in a provider that provides IPv6 (DigitalOcean/Hetzner/Linode).
+2. On your machine, run the following (replace <TARGET_IPV6> with the AAAA address from `/api/debug/dns`):
+
+```bash
+ssh root@<DROPLET_IPV4> 'bash -s' -- < <(curl -fsSL https://raw.githubusercontent.com/<your-repo>/main/tools/proxy-deploy.sh) <<< "TARGET_IPV6=2406:da1a:6b0:f60c:a3b9:19f9:b2bc:d22b"
+```
+
+Or simpler: copy `tools/proxy-deploy.sh` to the droplet and run:
+
+```bash
+# on the droplet
+sudo TARGET_IPV6=2406:da1a:6b0:f60c:a3b9:19f9:b2bc:d22b bash tools/proxy-deploy.sh
+```
+
+After the script runs it will print the droplet's public IPv4. Use that IPv4 in Render.
+
+Exact Render environment variable to set once you have the droplet IPv4 (EXAMPLE):
+
+DATABASE_URL=postgresql://postgres:<PASSWORD>@<DROPLET_IPV4>:5432/postgres
+PGSSL=1
+ADMIN_PASSWORD=<...>
+
+Replace `<PASSWORD>` with your encoded password (already encoded earlier). Do NOT commit these values to source control; set them as secrets in Render.
